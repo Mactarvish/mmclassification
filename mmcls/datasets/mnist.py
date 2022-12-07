@@ -10,7 +10,7 @@ from mmcv.runner import get_dist_info, master_only
 
 from .base_dataset import BaseDataset
 from .builder import DATASETS
-from .utils import download_and_extract_archive, rm_suffix
+from .utils.utils import download_and_extract_archive, rm_suffix
 
 
 @DATASETS.register_module()

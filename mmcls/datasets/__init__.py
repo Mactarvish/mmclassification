@@ -15,11 +15,16 @@ from .samplers import DistributedSampler, RepeatAugSampler
 from .stanford_cars import StanfordCars
 from .voc import VOC
 
+from .hand_slide_dataset import HandSlideDataset
+
 __all__ = [
     'BaseDataset', 'ImageNet', 'CIFAR10', 'CIFAR100', 'MNIST', 'FashionMNIST',
     'VOC', 'MultiLabelDataset', 'build_dataloader', 'build_dataset',
     'DistributedSampler', 'ConcatDataset', 'RepeatDataset',
     'ClassBalancedDataset', 'DATASETS', 'PIPELINES', 'ImageNet21k', 'SAMPLERS',
     'build_sampler', 'RepeatAugSampler', 'KFoldDataset', 'CUB',
-    'CustomDataset', 'StanfordCars'
+    'CustomDataset', 'StanfordCars',
+    
+    
+    'HandSlideDataset'
 ]

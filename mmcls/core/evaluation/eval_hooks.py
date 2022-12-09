@@ -27,7 +27,7 @@ class EvalHook(BaseEvalHook):
         key_score = self.evaluate(runner, results)
         # the key_score may be `None` so it needs to skip the action to save
         # the best checkpoint
-        if self.save_best and key_score:
+        if self.save_best: # and key_score:
             self._save_ckpt(runner, key_score)
 
 

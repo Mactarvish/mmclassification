@@ -67,6 +67,21 @@ class ImageToTensor(object):
 
 
 @PIPELINES.register_module()
+class LandmarkToTensor(object):
+
+    def __init__(self, keys):
+        self.keys = keys
+
+    def __call__(self, results):
+        for key in self.keys:
+            img = results[key]
+            results[key] = to_tensor(img)
+        return results
+
+    def __repr__(self):
+        return self.__class__.__name__ + f'(keys={self.keys})'
+
+@PIPELINES.register_module()
 class Transpose(object):
 
     def __init__(self, keys, order):

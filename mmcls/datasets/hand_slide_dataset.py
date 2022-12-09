@@ -9,8 +9,104 @@ from torch.utils.data.dataset import Dataset
 from tqdm import tqdm
 import datetime
 
-from .utils.parse_frames import parse_raw_files_to_frames, LABELS
 from .utils.poseembedding import FullBodyPoseEmbedder
+
+import os
+import glob
+import cv2
+import json
+import numpy as np
+
+LABELS = ["none", "up", "down", "left", "right"][:3]
+if len(LABELS) == 3:
+    print("不考虑左右")
+    print("不考虑左右")
+    print("不考虑左右")
+    print("不考虑左右")
+    print("不考虑左右")
+    print("不考虑左右")
+
+args = None
+
+
+class Frame():
+    def __init__(self, labelme_path, landmark, label, num_frame) -> None:
+        assert labelme_path.endswith('.json'), labelme_path
+        assert os.path.exists(labelme_path), labelme_path
+        assert label in LABELS, label
+        assert isinstance(landmark, np.ndarray), landmark
+
+        self.labelme_path = labelme_path
+        self.depth_path = labelme_path.replace(".json", ".png").replace("infer_result", "depth")
+        # assert os.path.exists(self.depth_path), self.depth_path
+        self.landmark = landmark
+        self.num_frame = num_frame
+        self.label = label
+
+
+
+def parse_on_table(src_dir):
+    # 每个目录里只有一种动作
+    if sum('/' + e in src_dir for e in LABELS) != 1:
+        print("注意，无效目录：", src_dir)
+        return [],[],[]
+    
+    for e in LABELS:
+        if '/' + e in src_dir:
+            action_name = e
+    
+    # action_json_dir = os.path.join(src_dir, "infer_result")
+    action_json_dir = os.path.join(src_dir, "merge_result")
+    assert os.path.exists(action_json_dir), action_json_dir
+
+    src_json_paths = sorted(glob.glob(os.path.join(action_json_dir, "*.json")))
+    # 首先把没有框的样本剔除，保持后续遍历时索引的连续性
+    src_json_paths = list(filter(lambda p: "bbox" in json.load(open(p, 'r')), src_json_paths))
+    
+    frame_labels = []
+    action_patches = []
+    frame_paths = []
+    begin = -1
+    end = -1
+    i = 0
+    for i, src_json_path in enumerate(src_json_paths):
+        frame_paths.append(src_json_path)
+        json_dict = json.load(open(src_json_path, 'r'))
+        assert "bbox" in json_dict
+        assert "on_table" in json_dict
+        on_table = json_dict["on_table"]
+        frame_labels.append(action_name if on_table else "none")
+        if (i == 0 or frame_labels[i - 1] == "none") and frame_labels[i] != "none":
+            begin = i
+        if frame_labels[i] == "none" and (i != 0 and frame_labels[i - 1] != "none"):
+            end = i - 1
+            # 从0开始算
+            action_patches.append([begin, end, action_name])
+    # 尾判
+    if frame_labels[-1] != "none":
+        end = i - 1
+        action_patches.append([begin, end, action_name])
+    
+    return frame_paths, frame_labels, action_patches
+    
+
+def parse_raw_files_to_frames(src_dir, num_keypoint):
+    # 从帧率解析文件中读取每一帧对应的动作类型，以及所有的标注动作片段
+    frame_paths, frame_labels, action_patches = parse_on_table(src_dir)
+    
+    # 将每一帧解析成Frame
+    frames = []
+    for i in range(len(frame_paths)):
+        src_json_path = frame_paths[i]
+        json_dict = json.load(open(src_json_path, 'r'))
+        landmark = np.zeros((21 , 3), dtype=np.float32)
+        for j in range(num_keypoint):
+            landmark[j] = json_dict["kp"][j][:3]
+        frame = Frame(src_json_path, landmark, frame_labels[i], i)
+        frames.append(frame)
+    
+    return frames
+
 
 from .base_dataset import BaseDataset
 from .builder import DATASETS
@@ -43,6 +139,9 @@ class HandSlideDataset(BaseDataset):
             cache = torch.load(cache_path)
             self.samples = cache["samples"]
             print(f"加载samples缓存 {cache_path} ：生成时间 {cache['modify_time']}")
+            # for s in self.samples:
+                # s["img"] = s["embedding"]
+                # s["gt_label"] = s["target"]
         else:
             for action in tqdm(self.actions):
                 self.samples.append(self.convert_action_to_sample(action))
@@ -58,23 +157,21 @@ class HandSlideDataset(BaseDataset):
         
         print("样本统计：")
         print(sample_statics)
-        super().__init__(data_prefix, pipeline)
         
         if not test_mode:
-            print("滤除不平衡none样本")
             none_samples  =[s for s in self.samples if s["label"] == "none"]
             down_samples  =[s for s in self.samples if s["label"] == "down"]
             up_samples  =[s for s in self.samples if s["label"] == "up"]
             sampled_nones = random.sample(none_samples, sample_statics["down"] + sample_statics["up"])
-            print(len(sampled_nones))
-            self.samples = sampled_nones + down_samples + up_samples
+            print(f"滤除不平衡none样本, 保留 {len(sampled_nones)} 个none")
+            self.samples = down_samples + up_samples + none_samples
+        # 必须在完成samples的全部处理之后再构造父类，否则加载的samples可能是不完善的
+        super().__init__(data_prefix, pipeline)
                     
     def load_annotations(self):
         data_infos = []
         data_infos = self.samples
         return data_infos
-        
-
         
 
     # def __len__(self) -> int:
@@ -93,7 +190,6 @@ class HandSlideDataset(BaseDataset):
     def convert_action_to_sample(self, action):
         assert isinstance(action, Action), type(action)
         result = {"landmark": ...,
-            "target": ...,
             "label": action.label,
             "src_depth_paths": [f.depth_path for f in action.frames]}
         
@@ -103,7 +199,7 @@ class HandSlideDataset(BaseDataset):
         result["embedding"] = embedding_np
         # 向mmclassification的BaseClassifier低头
         result["img"] = embedding_np
-        result["target"] = action.soft_label
+        result["gt_label"] = action.soft_label
 
         return result
             

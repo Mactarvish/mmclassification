@@ -11,11 +11,12 @@ from .stacked_head import StackedLinearClsHead
 from .vision_transformer_head import VisionTransformerClsHead
 
 from .dummy_head import DummyHead
+from .lstm_head import LSTMHead
 
 __all__ = [
     'ClsHead', 'LinearClsHead', 'StackedLinearClsHead', 'MultiLabelClsHead',
     'MultiLabelLinearClsHead', 'VisionTransformerClsHead', 'DeiTClsHead',
     'ConformerHead', 'EfficientFormerClsHead', 'CSRAClsHead',
     
-    'DummyHead'
+    'DummyHead', 'LSTMHead',
 ]

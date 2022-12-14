@@ -134,3 +134,4 @@ venv.bak/
 /report
 
 pgs
+*.onnx

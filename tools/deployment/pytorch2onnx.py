@@ -161,19 +161,18 @@ def pytorch2onnx(model,
 def parse_args():
     parser = argparse.ArgumentParser(description='Convert MMCls to ONNX')
     parser.add_argument('config', help='test config file path')
-    parser.add_argument('--checkpoint', help='checkpoint file', default=None)
+    parser.add_argument('checkpoint', help='checkpoint file', default=None)
     parser.add_argument('--show', action='store_true', help='show onnx graph')
     parser.add_argument(
         '--verify', action='store_true', help='verify the onnx model')
     parser.add_argument('--output-file', type=str, default='tmp.onnx')
-    parser.add_argument('--opset-version', type=int, default=11)
+    parser.add_argument('--opset-version', type=int, default=12)
     parser.add_argument(
         '--simplify',
         action='store_true',
         help='Whether to simplify onnx model.')
     parser.add_argument(
         '--shape',
-        type=int,
         nargs='+',
         default=[224, 224],
         help='input image size')
@@ -187,8 +186,9 @@ def parse_args():
 
 
 if __name__ == '__main__':
+    print("-------")
     args = parse_args()
-
+    print("-------")
     if len(args.shape) == 1:
         input_shape = (1, 3, args.shape[0], args.shape[0])
     elif len(args.shape) == 2:
@@ -197,7 +197,10 @@ if __name__ == '__main__':
             3,
         ) + tuple(args.shape)
     else:
-        raise ValueError('invalid input shape')
+        print(args.shape)
+        # raise ValueError('invalid input shape')
+    
+    input_shape = [1,8,21, 3]
 
     cfg = mmcv.Config.fromfile(args.config)
     cfg.model.pretrained = None

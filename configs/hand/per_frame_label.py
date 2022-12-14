@@ -1,6 +1,6 @@
 DURATION = 8
 NUM_CLASSES = 3
-ONLY_LAST = True
+ONLY_LAST = False
 
 
 # model settings
@@ -53,19 +53,17 @@ def gen_sub_data(src_dir, test_mode):
     gt_per_frame=not ONLY_LAST) 
 
 
-
 data = dict(
     samples_per_gpu=64,
     workers_per_gpu=8,
     train_dataloader=dict(shuffle=True),
-    train=gen_all_slide("/data/dataset/hand/backup/slide", False),
-    val=gen_all_slide("/data/dataset/hand/backup/slide", True),
-    test=gen_all_slide("/data/dataset/hand/backup/slide", True),
+    train=gen_all_slide("/data/dataset/hand/backup/slide/", False),
+    val=gen_all_slide("/data/dataset/hand/backup/slide/", True),
+    test=gen_all_slide("/data/dataset/hand/backup/slide/", True),
         )
 # optimizer
 # optimizer = dict(type='SGD', lr=0.1, momentum=0.9, weight_decay=0.0001)
 optimizer = dict(type='AdamW', lr=1e-3)
-# optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)
 
 
 optimizer_config = dict(grad_clip=None)
@@ -100,4 +98,4 @@ load_from = None
 resume_from = None
 workflow = [('train', 1)]
 
-work_dir = "./work_dirs/hand/baseline"
+work_dir = "./work_dirs/hand/per_frame_label"

@@ -7,8 +7,6 @@ from collections import defaultdict
 from tqdm import tqdm
 import datetime
 
-from .utils.poseembedding import FullBodyPoseEmbedder
-
 import os
 import glob
 import json
@@ -33,13 +31,14 @@ class HandSlideDataset(BaseDataset):
                  data_prefix,
                  pipeline,
                  duration,
-                 num_keypoint,
+                 num_keypoints,
+                 single_finger,
                  test_mode,
                  gt_per_frame):
         self.duration = duration
         self.gt_per_frame = gt_per_frame
-        self.frames = parse_raw_files_to_frames(data_prefix, num_keypoint)
-        self.embedder = FullBodyPoseEmbedder()
+        self.single_finger = single_finger
+        self.frames = parse_raw_files_to_frames(data_prefix, num_keypoints)
 
         cache_path = os.path.join(data_prefix, "dataset_samples.pkl")
         if os.path.exists(cache_path):
@@ -54,6 +53,8 @@ class HandSlideDataset(BaseDataset):
                         "duration": self.duration},
                        os.path.join(data_prefix, "dataset_samples.pkl"))
         
+        if self.single_finger:
+            ...
         # 统计样本分布
         sample_statics = defaultdict(int)
         for e in self.samples:
@@ -109,12 +110,6 @@ class HandSlideDataset(BaseDataset):
             gt_labels = np.array([data['gt_label'] for data in self.data_infos]).argmax(axis=1)
         return gt_labels
 
-    # def __len__(self) -> int:
-    #     return len(self.samples)
-
-    # def __getitem__(self, index):
-    #     return self.samples[index]
-    
     def generate_samples(self):
         samples = []
         for i in tqdm(range(len(self.frames) - self.duration + 1)):
@@ -122,7 +117,6 @@ class HandSlideDataset(BaseDataset):
             samples.append(sample)
         return samples
               
-    
     def generate_single_sample(self, indexes):
         # 1. 计算所有跟当前片段有重叠的有效动作片段(Valid Action Patches, VAP)
         begin = indexes[0]
@@ -191,7 +185,8 @@ class HandSlideDataset(BaseDataset):
         frames = [self.frames[k] for k in range(indexes[0], indexes[1] + 1)]
         result = dict()
         result["src_depth_paths"]  =[f.depth_path for f in frames]
-        result["img"] = np.array([self.embedder(f.landmark) for f in frames])
+        # result["img"] = np.array([self.normalize_landmark(f.landmark) for f in frames])
+        result["img"] = np.array([f.embedding for f in frames])
         result["gt_label"] = soft_label
         result["label"] = LABELS[np.argmax(soft_label)]
         result["frame_label"] = [LABELS.index(f.label) for f in frames]
@@ -212,11 +207,30 @@ class Frame():
         self.depth_path = labelme_path.replace(".json", ".png").replace("merge_result", "depth")
         # assert os.path.exists(self.depth_path), self.depth_path
         self.landmark = landmark
+        self.embedding = self.normalize_landmark(self.landmark)
         self.num_frame = num_frame
         self.label = label
 
+    def normalize_landmark(self, landmark):
+        # 减去手掌根部点
+        landmark = landmark - landmark[15]
+        # 除以手掌根部点到中指指尖点的距离
+        max_inner_distance = np.linalg.norm(landmark[2])
+        landmark = landmark / max_inner_distance
 
-def parse_raw_files_to_frames(src_dir, num_keypoint):
+        return landmark
+
+    def _normalize_landmark(self, landmark):
+        # 减去均值
+        landmark = landmark - np.mean(landmark, axis=0)
+        # 除以关键点两两之间的最大距离（2范数）
+        max_inner_distance = np.linalg.norm(landmark[None, ...] - landmark[:, None, ...], axis=2).max()
+        landmark = landmark / max_inner_distance
+
+        return landmark
+
+
+def parse_raw_files_to_frames(src_dir, num_keypoints):
     # 从帧率解析文件中读取每一帧对应的动作类型，以及所有的标注动作片段
     frame_paths, frame_labels, action_patches = parse_on_table(src_dir)
     
@@ -225,13 +239,14 @@ def parse_raw_files_to_frames(src_dir, num_keypoint):
     for i in range(len(frame_paths)):
         src_json_path = frame_paths[i]
         json_dict = json.load(open(src_json_path, 'r'))
-        landmark = np.zeros((21 , 3), dtype=np.float32)
-        for j in range(num_keypoint):
+        landmark = np.zeros((num_keypoints , 3), dtype=np.float32)
+        for j in range(num_keypoints):
             landmark[j] = json_dict["kp"][j][:3]
         frame = Frame(src_json_path, landmark, frame_labels[i], i)
         frames.append(frame)
     
     return frames
+
 
 def parse_on_table(src_dir):
     # 每个目录里只有一种动作

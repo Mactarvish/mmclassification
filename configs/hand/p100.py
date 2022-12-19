@@ -1,6 +1,7 @@
 DURATION = 8
 NUM_CLASSES = 3
 ONLY_LAST = True
+NUM_KEYPOINTS = 16
 
 
 # model settings
@@ -9,6 +10,7 @@ model = dict(
     backbone=dict(
         type="HandCNNLSTM",
         num_frames=DURATION,
+        fea_num=NUM_KEYPOINTS*3
     ),
     # neck=dict(type='GlobalAveragePooling'),
     head=dict(
@@ -48,7 +50,8 @@ def gen_sub_data(src_dir, test_mode):
     data_prefix=src_dir,
     pipeline=train_pipeline if not test_mode else test_pipeline,
     duration=DURATION,
-    num_keypoint=16,
+    num_keypoints=NUM_KEYPOINTS,
+    single_finger=False,
     test_mode=test_mode,
     gt_per_frame=not ONLY_LAST) 
 
@@ -58,14 +61,13 @@ data = dict(
     samples_per_gpu=64,
     workers_per_gpu=8,
     train_dataloader=dict(shuffle=True),
-    train=gen_all_slide("/data/dataset/hand/backup/slide/2022_11_28/guoqihang/", False),
-    val=gen_all_slide("/data/dataset/hand/backup/slide/2022_11_28/guoqihang/", True),
-    test=gen_all_slide("/data/dataset/hand/backup/slide/2022_11_28/guoqihang/", True),
+    train=gen_all_slide("/data/dataset/hand/backup/slide/per_100", False),
+    val=gen_all_slide("/data/dataset/hand/backup/slide/per_100", True),
+    test=gen_all_slide("/data/dataset/hand/backup/slide/per_100", True),
         )
 # optimizer
 # optimizer = dict(type='SGD', lr=0.1, momentum=0.9, weight_decay=0.0001)
 optimizer = dict(type='AdamW', lr=1e-3)
-# optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)
 
 
 optimizer_config = dict(grad_clip=None)
@@ -100,4 +102,4 @@ load_from = None
 resume_from = None
 workflow = [('train', 1)]
 
-work_dir = "./work_dirs/hand/debug"
+work_dir = "./work_dirs/hand/p100"

@@ -88,7 +88,7 @@ evaluation = dict(
         average_mode="none",
         thrs=(0., )
     ),
-    rule="custom",
+    rule="hand_slide",
     save_best='auto')  # save the checkpoint with highest accuracy
 
 

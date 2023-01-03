@@ -36,11 +36,10 @@ test_pipeline = [
 def gen_all_slide(root_dir, test_mode):
     import glob
     import os
-    infer_result_dirs = glob.glob(os.path.join(root_dir, "**", "up"), recursive=True) + glob.glob(os.path.join(root_dir, "**", "down"), recursive=True)
-    src_dirs = sorted(set(os.path.dirname(d) for d in infer_result_dirs))
-    print(test_mode, ':')
+    # infer_result_dirs = glob.glob(os.path.join(root_dir, "**", "up"), recursive=True) + glob.glob(os.path.join(root_dir, "**", "down"), recursive=True)
+    src_dirs = sorted(filter(lambda p: os.path.isdir(p), glob.glob(os.path.join(root_dir, '*'))))
+    # src_dirs = sorted(set(os.path.dirname(d) for d in infer_result_dirs))
     [print(p) for p in src_dirs]
-    print("-----------------------------------------")
     return [gen_sub_data(d, test_mode) for d in src_dirs]
 
 
@@ -66,8 +65,8 @@ data = dict(
     test=gen_all_slide("/data/dataset/hand/splited/slide/train", True),
         )
 # optimizer
-# optimizer = dict(type='SGD', lr=0.1, momentum=0.9, weight_decay=0.0001)
-optimizer = dict(type='AdamW', lr=1e-3)
+optimizer = dict(type='SGD', lr=0.1, momentum=0.9, weight_decay=0.0001)
+# optimizer = dict(type='AdamW', lr=1e-3)
 
 
 optimizer_config = dict(grad_clip=None)
@@ -102,4 +101,4 @@ load_from = None
 resume_from = None
 workflow = [('train', 1)]
 
-work_dir = "./work_dirs/hand/p100"
+work_dir = "./work_dirs/hand/p100_sgd"

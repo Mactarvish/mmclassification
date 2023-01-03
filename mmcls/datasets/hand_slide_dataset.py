@@ -28,19 +28,22 @@ if len(LABELS) == 3:
 @DATASETS.register_module()
 class HandSlideDataset(BaseDataset):
     def __init__(self,
-                 data_prefix,
+                 src_dir,
                  pipeline,
                  duration,
                  num_keypoints,
                  single_finger,
                  test_mode,
                  gt_per_frame):
+        assert "backup" not in src_dir, src_dir
+        self.src_dir = src_dir
+        
         self.duration = duration
         self.gt_per_frame = gt_per_frame
         self.single_finger = single_finger
-        self.frames = parse_raw_files_to_frames(data_prefix, num_keypoints)
+        self.frames = self.parse_jsons_to_frames(self.src_dir, num_keypoints)
 
-        cache_path = os.path.join(data_prefix, "dataset_samples.pkl")
+        cache_path = os.path.join(self.src_dir, "dataset_samples.pkl")
         if os.path.exists(cache_path):
             cache = torch.load(cache_path)
             self.samples = cache["samples"]
@@ -51,23 +54,29 @@ class HandSlideDataset(BaseDataset):
             torch.save({"samples": self.samples,
                         "modify_time": datetime.datetime.now(),
                         "duration": self.duration},
-                       os.path.join(data_prefix, "dataset_samples.pkl"))
+                       os.path.join(self.src_dir, "dataset_samples.pkl"))
         
         if self.single_finger:
-            ...
+            print("使能单指推理")
+            for s in self.samples:
+                # 保留 [1,6,11,16]
+                s["img"][:, 0, :] = 0
+                s["img"][:, 2:6, :] = 0
+                s["img"][:, 7:11, :] = 0
+                s["img"][:, 12:16, :] = 0
         # 统计样本分布
-        sample_statics = defaultdict(int)
+        self.sample_statics = defaultdict(int)
         for e in self.samples:
-            sample_statics[e["label"]] += 1
+            self.sample_statics[e["label"]] += 1
         
         print("样本统计：")
-        print(sample_statics)
+        print(self.sample_statics)
         
         if not test_mode:
             none_samples  =[s for s in self.samples if s["label"] == "none"]
             down_samples  =[s for s in self.samples if s["label"] == "down"]
             up_samples  =[s for s in self.samples if s["label"] == "up"]
-            sampled_nones = random.sample(none_samples, sample_statics["down"] + sample_statics["up"])
+            sampled_nones = random.sample(none_samples, self.sample_statics["down"] + self.sample_statics["up"])
             print(f"滤除不平衡none样本, 保留 {len(sampled_nones)} 个none")
             self.samples = down_samples + up_samples + none_samples
         
@@ -75,9 +84,39 @@ class HandSlideDataset(BaseDataset):
             print("使能逐帧GT")
             for s in self.samples:
                 s["gt_label"] = s["frame_label"]
-        # 必须在完成samples的全部处理之后再构造父类，否则加载的samples可能是不完善的
-        super().__init__(data_prefix, pipeline)
+        super().__init__(self.src_dir, pipeline)
                     
+    def parse_jsons_to_frames(self, src_dir, num_keypoints):
+        src_json_paths = sorted(glob.glob(os.path.join(self.src_dir, "**", "merge_result", "*.json"), recursive=True))
+        assert len(src_json_paths) != 0, self.src_dir
+        # 首先把没有框的样本剔除，保持后续遍历时索引的连续性
+        src_json_paths = list(filter(lambda p: "bbox" in json.load(open(p, 'r')), src_json_paths))
+        
+        # 逐个json解析成Frame
+        frames = []
+        for i, src_json_path in enumerate(src_json_paths):
+            json_dict = json.load(open(src_json_path, 'r'))
+            assert "bbox" in json_dict
+            assert "kp" in json_dict
+            assert "on_table" in json_dict
+
+            # 解析landmark
+            landmark = np.zeros((num_keypoints , 3), dtype=np.float32)
+            for j in range(num_keypoints):
+                landmark[j] = json_dict["kp"][j][:3]
+                
+            # 确定当前帧的标签
+            if json_dict["on_table"]:
+                for e in LABELS:
+                    if '/' + e in src_json_path:
+                        label = e
+            else:
+                label = "none"
+                
+            frames.append(Frame(src_json_path, landmark, label, i))
+            
+        return frames
+
     def load_annotations(self):
         data_infos = []
         data_infos = self.samples
@@ -111,12 +150,36 @@ class HandSlideDataset(BaseDataset):
         return gt_labels
 
     def generate_samples(self):
+        '''
+        根据帧序列生成样本
+        '''
         samples = []
         for i in tqdm(range(len(self.frames) - self.duration + 1)):
             sample = self.generate_single_sample([i, i + self.duration - 1])
             samples.append(sample)
         return samples
               
+    def _generate_single_sample(self, indexes):
+        # 有效动作的最后一帧对齐
+        soft_label = np.zeros(len(LABELS))
+        if self.frames[indexes[-1]].label != "none" and \
+            (indexes[-1] + 1 >= len(self.frames) or self.frames[indexes[-1] + 1].label == "none"):
+            soft_label[LABELS.index(self.frames[indexes[-1]].label)] = 1.
+        else:
+            soft_label[0] = 1.
+        
+        frames = [self.frames[k] for k in range(indexes[0], indexes[1] + 1)]
+        result = dict()
+        result["src_depth_paths"]  =[f.depth_path for f in frames]
+        result["img"] = np.array([f.embedding for f in frames])
+        result["gt_label"] = soft_label
+        result["label"] = LABELS[np.argmax(soft_label)]
+        result["frame_label"] = [LABELS.index(f.label) for f in frames]
+        # 转one hot编码
+        result["frame_label"] = np.eye(len(LABELS))[result["frame_label"]]
+        
+        return result
+
     def generate_single_sample(self, indexes):
         # 1. 计算所有跟当前片段有重叠的有效动作片段(Valid Action Patches, VAP)
         begin = indexes[0]
@@ -195,6 +258,10 @@ class HandSlideDataset(BaseDataset):
 
         return result
 
+    def __str__(self):
+        dataset_name = os.path.basename(self.src_dir)
+        s = ' '.join([dataset_name, self.sample_statics.__str__()])
+        return s
 
 class Frame():
     def __init__(self, labelme_path, landmark, label, num_frame) -> None:
@@ -230,63 +297,3 @@ class Frame():
         return landmark
 
 
-def parse_raw_files_to_frames(src_dir, num_keypoints):
-    # 从帧率解析文件中读取每一帧对应的动作类型，以及所有的标注动作片段
-    frame_paths, frame_labels, action_patches = parse_on_table(src_dir)
-    
-    # 将每一帧解析成Frame
-    frames = []
-    for i in range(len(frame_paths)):
-        src_json_path = frame_paths[i]
-        json_dict = json.load(open(src_json_path, 'r'))
-        landmark = np.zeros((num_keypoints , 3), dtype=np.float32)
-        for j in range(num_keypoints):
-            landmark[j] = json_dict["kp"][j][:3]
-        frame = Frame(src_json_path, landmark, frame_labels[i], i)
-        frames.append(frame)
-    
-    return frames
-
-
-def parse_on_table(src_dir):
-    # 每个目录里只有一种动作
-    if sum('/' + e in src_dir for e in LABELS) != 1:
-        print("注意，无效目录：", src_dir)
-        return [],[],[]
-    
-    for e in LABELS:
-        if '/' + e in src_dir:
-            action_name = e
-    
-    action_json_dir = os.path.join(src_dir, "merge_result")
-    assert os.path.exists(action_json_dir), action_json_dir
-
-    src_json_paths = sorted(glob.glob(os.path.join(action_json_dir, "*.json")))
-    # 首先把没有框的样本剔除，保持后续遍历时索引的连续性
-    src_json_paths = list(filter(lambda p: "bbox" in json.load(open(p, 'r')), src_json_paths))
-    
-    frame_labels = []
-    action_patches = []
-    frame_paths = []
-    begin = -1
-    end = -1
-    i = 0
-    for i, src_json_path in enumerate(src_json_paths):
-        frame_paths.append(src_json_path)
-        json_dict = json.load(open(src_json_path, 'r'))
-        assert "bbox" in json_dict
-        assert "on_table" in json_dict
-        on_table = json_dict["on_table"]
-        frame_labels.append(action_name if on_table else "none")
-        if (i == 0 or frame_labels[i - 1] == "none") and frame_labels[i] != "none":
-            begin = i
-        if frame_labels[i] == "none" and (i != 0 and frame_labels[i - 1] != "none"):
-            end = i - 1
-            # 从0开始算
-            action_patches.append([begin, end, action_name])
-    # 尾判
-    if frame_labels[-1] != "none":
-        end = i - 1
-        action_patches.append([begin, end, action_name])
-    
-    return frame_paths, frame_labels, action_patches

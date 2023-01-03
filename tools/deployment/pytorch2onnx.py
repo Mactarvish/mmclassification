@@ -200,7 +200,7 @@ if __name__ == '__main__':
         print(args.shape)
         # raise ValueError('invalid input shape')
     
-    input_shape = [1,8,21, 3]
+    input_shape = [1,8,16, 3]
 
     cfg = mmcv.Config.fromfile(args.config)
     cfg.model.pretrained = None

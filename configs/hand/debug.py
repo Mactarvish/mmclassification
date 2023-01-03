@@ -1,6 +1,7 @@
-DURATION = 8
+DURATION = 4
 NUM_CLASSES = 3
 ONLY_LAST = True
+NUM_KEYPOINTS = 16
 
 
 # model settings
@@ -9,6 +10,7 @@ model = dict(
     backbone=dict(
         type="HandCNNLSTM",
         num_frames=DURATION,
+        fea_num=NUM_KEYPOINTS*3
     ),
     # neck=dict(type='GlobalAveragePooling'),
     head=dict(
@@ -34,10 +36,10 @@ test_pipeline = [
 def gen_all_slide(root_dir, test_mode):
     import glob
     import os
-    infer_result_dirs = glob.glob(os.path.join(root_dir, "**", "merge_result"), recursive=True)
-    src_dirs = sorted([os.path.dirname(d) for d in infer_result_dirs])
-    # fixme 写死防止空数据集
-    src_dirs = list(filter(lambda p: "/up" in p or "/down" in p, src_dirs))
+    # infer_result_dirs = glob.glob(os.path.join(root_dir, "**", "up"), recursive=True) + glob.glob(os.path.join(root_dir, "**", "down"), recursive=True)
+    src_dirs = sorted(filter(lambda p: os.path.isdir(p), glob.glob(os.path.join(root_dir, '*'))))
+    # src_dirs = sorted(set(os.path.dirname(d) for d in infer_result_dirs))
+    [print(p) for p in src_dirs]
     return [gen_sub_data(d, test_mode) for d in src_dirs]
 
 
@@ -45,27 +47,26 @@ def gen_sub_data(src_dir, test_mode):
     return \
     dict(
     type=dataset_type, 
-    data_prefix=src_dir,
+    src_dir=src_dir,
     pipeline=train_pipeline if not test_mode else test_pipeline,
     duration=DURATION,
-    num_keypoint=16,
+    num_keypoints=NUM_KEYPOINTS,
+    single_finger=True,
     test_mode=test_mode,
     gt_per_frame=not ONLY_LAST) 
-
 
 
 data = dict(
     samples_per_gpu=64,
     workers_per_gpu=8,
     train_dataloader=dict(shuffle=True),
-    train=gen_all_slide("/data/dataset/hand/backup/slide/2022_11_28/guoqihang/", False),
-    val=gen_all_slide("/data/dataset/hand/backup/slide/2022_11_28/guoqihang/", True),
-    test=gen_all_slide("/data/dataset/hand/backup/slide/2022_11_28/guoqihang/", True),
+    train=gen_all_slide("/data/dataset/hand/splited/slide/test", False),
+    val=gen_all_slide("/data/dataset/hand/splited/slide/test", True),
+    test=gen_all_slide("/data/dataset/hand/splited/slide/test", True),
         )
 # optimizer
-# optimizer = dict(type='SGD', lr=0.1, momentum=0.9, weight_decay=0.0001)
-optimizer = dict(type='AdamW', lr=1e-3)
-# optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)
+optimizer = dict(type='SGD', lr=0.1, momentum=0.9, weight_decay=0.0001)
+# optimizer = dict(type='AdamW', lr=1e-3)
 
 
 optimizer_config = dict(grad_clip=None)

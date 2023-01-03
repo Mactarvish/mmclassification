@@ -6,7 +6,7 @@ from collections import defaultdict
 
 from tqdm import tqdm
 import datetime
-
+import sys
 import os
 import glob
 import json
@@ -36,6 +36,7 @@ class HandSlideDataset(BaseDataset):
                  test_mode,
                  gt_per_frame):
         assert "backup" not in src_dir, src_dir
+        assert "slide/" in src_dir, src_dir
         self.src_dir = src_dir
         
         self.duration = duration
@@ -43,18 +44,22 @@ class HandSlideDataset(BaseDataset):
         self.single_finger = single_finger
         self.frames = self.parse_jsons_to_frames(self.src_dir, num_keypoints)
 
-        cache_path = os.path.join(self.src_dir, "dataset_samples.pkl")
-        if os.path.exists(cache_path):
+        cache_name = '_'.join(self.src_dir.split("slide/")[-1].split('/')) + ".pkl"
+        cache_path = os.path.join("pgs", cache_name)
+        os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+        # debug模式不加载缓存
+        if os.path.exists(cache_path) and not sys.gettrace():
             cache = torch.load(cache_path)
             self.samples = cache["samples"]
             print(f"加载samples缓存 {cache_path} ：生成时间 {cache['modify_time']}")
         else:
+            # 无缓存文件，重新生成样本
             self.samples = self.generate_samples()
             print(f"生成缓存到 {cache_path}")
             torch.save({"samples": self.samples,
                         "modify_time": datetime.datetime.now(),
                         "duration": self.duration},
-                       os.path.join(self.src_dir, "dataset_samples.pkl"))
+                       cache_path)
         
         if self.single_finger:
             print("使能单指推理")
@@ -263,6 +268,7 @@ class HandSlideDataset(BaseDataset):
         s = ' '.join([dataset_name, self.sample_statics.__str__()])
         return s
 
+
 class Frame():
     def __init__(self, labelme_path, landmark, label, num_frame) -> None:
         assert labelme_path.endswith('.json'), labelme_path
@@ -272,28 +278,8 @@ class Frame():
 
         self.labelme_path = labelme_path
         self.depth_path = labelme_path.replace(".json", ".png").replace("merge_result", "depth")
-        # assert os.path.exists(self.depth_path), self.depth_path
         self.landmark = landmark
-        self.embedding = self.normalize_landmark(self.landmark)
+        self.embedding = self.landmark
         self.num_frame = num_frame
         self.label = label
-
-    def normalize_landmark(self, landmark):
-        # 减去手掌根部点
-        landmark = landmark - landmark[15]
-        # 除以手掌根部点到中指指尖点的距离
-        max_inner_distance = np.linalg.norm(landmark[2])
-        landmark = landmark / max_inner_distance
-
-        return landmark
-
-    def _normalize_landmark(self, landmark):
-        # 减去均值
-        landmark = landmark - np.mean(landmark, axis=0)
-        # 除以关键点两两之间的最大距离（2范数）
-        max_inner_distance = np.linalg.norm(landmark[None, ...] - landmark[:, None, ...], axis=2).max()
-        landmark = landmark / max_inner_distance
-
-        return landmark
-
-
+        

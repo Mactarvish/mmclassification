@@ -10,7 +10,7 @@ from .formatting import (Collect, ImageToTensor, ToNumpy, ToPIL, ToTensor,
 from .loading import LoadImageFromFile
 from .transforms import (CenterCrop, ColorJitter, Lighting, Normalize, Pad,
                          RandomCrop, RandomErasing, RandomFlip,
-                         RandomGrayscale, RandomResizedCrop, Resize)
+                         RandomGrayscale, RandomResizedCrop, Resize, LandmarkAddNoise, LandmarkNormalize)
 
 __all__ = [
     'Compose', 'to_tensor', 'ToTensor', 'ImageToTensor', 'ToPIL', 'ToNumpy',
@@ -20,5 +20,5 @@ __all__ = [
     'ColorTransform', 'Solarize', 'Posterize', 'AutoContrast', 'Equalize',
     'Contrast', 'Brightness', 'Sharpness', 'AutoAugment', 'SolarizeAdd',
     'Cutout', 'RandAugment', 'Lighting', 'ColorJitter', 'RandomErasing', 'Pad',
-    'LandmarkToTensor',
+    'LandmarkToTensor', "LandmarkAddNoise", "LandmarkNormalize"
 ]

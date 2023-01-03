@@ -1144,3 +1144,59 @@ class Albu(object):
     def __repr__(self):
         repr_str = self.__class__.__name__ + f'(transforms={self.transforms})'
         return repr_str
+
+
+
+@PIPELINES.register_module()
+class LandmarkAddNoise(object):
+    """给关键点坐标添加噪声
+    """
+
+    def __init__(self, single_finger=False):
+        self.single_finger = single_finger
+
+    def __call__(self, results):
+        for key in results.get('img_fields', ['img']):
+            noise_xy = np.random.uniform(-5, +5, results[key].shape[:2] + (2,))
+            noise_z = np.random.uniform(-2, +2, results[key].shape[:2])
+            if self.single_finger:
+                results[key][:, [1, 6, 11, 15], :2] += noise_xy[:, [1, 6, 11, 15]]
+                results[key][:, [1, 6, 11, 15], 2] += noise_z[:, [1, 6, 11, 15]]
+            else:
+                results[key][..., :2] += noise_xy
+                results[key][..., 2] += noise_z
+        return results
+
+    def __repr__(self):
+        repr_str = self.__class__.__name__
+        return repr_str
+    
+
+@PIPELINES.register_module()
+class LandmarkNormalize(object):
+    """归一化关键点
+
+    Args:
+        mean (sequence): Mean values of 3 channels.
+        std (sequence): Std values of 3 channels.
+        to_rgb (bool): Whether to convert the image from BGR to RGB,
+            default is true.
+    """
+
+    def __init__(self, norm_type="root"):
+        assert norm_type in ["root"]
+        self.norm_type = norm_type
+
+    def __call__(self, results):
+        for key in results.get('img_fields', ['img']):
+            results[key] = self.normalize_landmark(results[key])
+        return results
+
+    def normalize_landmark(self, landmark):
+        # 逐帧减去手掌根部点
+        landmark = (landmark.transpose(1,0,2) - landmark[:, 15, :]).transpose(1,0,2)
+        # 逐帧除以手掌根部点到中指指尖点的距离
+        max_inner_distance = np.linalg.norm(landmark[:, 2, :], axis=1)
+        landmark = landmark / max_inner_distance[..., np.newaxis, np.newaxis]
+
+        return landmark

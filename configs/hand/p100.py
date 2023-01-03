@@ -2,7 +2,7 @@ DURATION = 8
 NUM_CLASSES = 3
 ONLY_LAST = True
 NUM_KEYPOINTS = 16
-
+SINGLE_FINGER = False
 
 # model settings
 model = dict(
@@ -23,11 +23,14 @@ model = dict(
 # dataset settings
 dataset_type = 'HandSlideDataset'
 train_pipeline = [
+    dict(type='LandmarkAddNoise', single_finger=SINGLE_FINGER),
+    dict(type='LandmarkNormalize'),
     dict(type='LandmarkToTensor', keys=['img']),
     dict(type='ToTensor', keys=['gt_label']),
     dict(type='Collect', keys=['img', 'gt_label'], meta_keys=['landmark', 'label', 'src_depth_paths'])
 ]
 test_pipeline = [
+    dict(type='LandmarkNormalize'),
     dict(type='LandmarkToTensor', keys=['img']),
     dict(type='Collect', keys=['img'], meta_keys=['landmark', 'label', 'src_depth_paths'])
 ]
@@ -52,7 +55,7 @@ def gen_sub_data(src_dir, test_mode):
     pipeline=train_pipeline if not test_mode else test_pipeline,
     duration=DURATION,
     num_keypoints=NUM_KEYPOINTS,
-    single_finger=False,
+    single_finger=SINGLE_FINGER,
     test_mode=test_mode,
     gt_per_frame=not ONLY_LAST) 
 

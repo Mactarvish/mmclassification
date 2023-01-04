@@ -23,6 +23,22 @@ if len(LABELS) == 3:
     print("不考虑左右")
     print("不考虑左右")
     print("不考虑左右") 
+    
+    
+class Frame():
+    def __init__(self, labelme_path, landmark, label, num_frame) -> None:
+        # 存储单帧的全部信息
+        assert labelme_path.endswith('.json'), labelme_path
+        assert os.path.exists(labelme_path), labelme_path
+        assert label in LABELS, label
+        assert isinstance(landmark, np.ndarray), landmark
+
+        self.labelme_path = labelme_path
+        self.depth_path = labelme_path.replace(".json", ".png").replace("merge_result", "depth")
+        self.landmark = landmark
+        self.embedding = self.landmark
+        self.num_frame = num_frame
+        self.label = label
 
 
 @DATASETS.register_module()
@@ -32,15 +48,18 @@ class HandSlideDataset(BaseDataset):
                  pipeline,
                  duration,
                  num_keypoints,
+                 *,
                  single_finger,
                  test_mode,
-                 gt_per_frame):
+                 gt_per_frame,
+                 new_first):
         assert "backup" not in src_dir, src_dir
         assert "slide/" in src_dir, src_dir
         self.src_dir = src_dir
         
         self.duration = duration
         self.gt_per_frame = gt_per_frame
+        self.new_first = new_first
         self.single_finger = single_finger
         self.frames = self.parse_jsons_to_frames(self.src_dir, num_keypoints)
 
@@ -88,11 +107,14 @@ class HandSlideDataset(BaseDataset):
         if self.gt_per_frame:
             print("使能逐帧GT")
             for s in self.samples:
-                s["gt_label"] = s["frame_label"]
+                s["gt_label"] = s["per_frame_label"]
         super().__init__(self.src_dir, pipeline)
                     
     def parse_jsons_to_frames(self, src_dir, num_keypoints):
         src_json_paths = sorted(glob.glob(os.path.join(self.src_dir, "**", "merge_result", "*.json"), recursive=True))
+        # 新的在最前头
+        if self.new_first:
+            src_json_paths = src_json_paths[::-1]
         assert len(src_json_paths) != 0, self.src_dir
         # 首先把没有框的样本剔除，保持后续遍历时索引的连续性
         src_json_paths = list(filter(lambda p: "bbox" in json.load(open(p, 'r')), src_json_paths))
@@ -138,10 +160,10 @@ class HandSlideDataset(BaseDataset):
             # 除了0以外，最多且超过2个的元素
             gt_labels = []
             for e in self.data_infos:
-                class_count = e["frame_label"].argmax(axis=1)
+                class_count = e["per_frame_label"].argmax(axis=1)
                 maxc = -1
                 maxi = 0
-                for i in range(self.data_infos[0]["frame_label"].shape[-1]):
+                for i in range(self.data_infos[0]["per_frame_label"].shape[-1]):
                     if (class_count == i).sum() > maxc:
                         maxc = (class_count == i).sum()
                         maxi = i
@@ -160,11 +182,18 @@ class HandSlideDataset(BaseDataset):
         '''
         samples = []
         for i in tqdm(range(len(self.frames) - self.duration + 1)):
-            sample = self.generate_single_sample([i, i + self.duration - 1])
+            sample = self.generate_single_sample_align_first([i, i + self.duration - 1])
             samples.append(sample)
         return samples
+
+    def generate_soft_label(self, prob, label):
+        assert prob <= 1, prob
+        sl = np.zeros(len(LABELS), dtype=np.float)
+        sl[LABELS.index(label)] = prob
+        sl[0] = 1 - prob
+        return sl
               
-    def _generate_single_sample(self, indexes):
+    def generate_single_sample_align_last(self, indexes):
         # 有效动作的最后一帧对齐
         soft_label = np.zeros(len(LABELS))
         if self.frames[indexes[-1]].label != "none" and \
@@ -179,13 +208,46 @@ class HandSlideDataset(BaseDataset):
         result["img"] = np.array([f.embedding for f in frames])
         result["gt_label"] = soft_label
         result["label"] = LABELS[np.argmax(soft_label)]
-        result["frame_label"] = [LABELS.index(f.label) for f in frames]
+        result["per_frame_label"] = [LABELS.index(f.label) for f in frames]
         # 转one hot编码
-        result["frame_label"] = np.eye(len(LABELS))[result["frame_label"]]
+        result["per_frame_label"] = np.eye(len(LABELS))[result["per_frame_label"]]
         
+        return result       
+        
+    def generate_single_sample_align_first(self, indexes):
+        # 有效动作首帧对齐
+        seq_size = indexes[-1] - indexes[0] + 1
+        frames = [self.frames[k] for k in range(indexes[0], indexes[1] + 1)]
+        soft_label = np.zeros((seq_size, len(LABELS)))
+        cur_label = frames[0].label
+        
+        if frames[0].label != "none" and frames[1].label == frames[0].label:
+            left = indexes[0]
+            right = indexes[0]
+            while left >= 0 and self.frames[left].label != "none":
+                left -= 1
+            while right < len(self.frames) and self.frames[right].label != "none":
+                right += 1
+            left += 1
+            right -= 1
+        
+            for i in range(seq_size):
+                # 当前帧是cur_label但是上一帧不是，说明开始了一个新的有效动作，终结当前label
+                if i != 0 and (frames[i].label == cur_label and frames[i - 1].label != cur_label):
+                    break
+                hit_count = sum(frames[k].label == cur_label for k in range(i + 1))
+                soft_label[i] = self.generate_soft_label(hit_count / (i + 1), cur_label)
+            
+        result = dict()
+        result["src_depth_paths"]  =[f.depth_path for f in frames]
+        result["img"] = np.array([f.embedding for f in frames])
+        result["gt_label"] = soft_label
+        result["label"] = LABELS[np.argmax(soft_label[0])]
+        result["per_frame_label"] = result["gt_label"]
+
         return result
 
-    def generate_single_sample(self, indexes):
+    def generate_single_sample_tiou(self, indexes):
         # 1. 计算所有跟当前片段有重叠的有效动作片段(Valid Action Patches, VAP)
         begin = indexes[0]
         end = indexes[0]
@@ -257,9 +319,9 @@ class HandSlideDataset(BaseDataset):
         result["img"] = np.array([f.embedding for f in frames])
         result["gt_label"] = soft_label
         result["label"] = LABELS[np.argmax(soft_label)]
-        result["frame_label"] = [LABELS.index(f.label) for f in frames]
+        result["per_frame_label"] = [LABELS.index(f.label) for f in frames]
         # 转one hot编码
-        result["frame_label"] = np.eye(len(LABELS))[result["frame_label"]]
+        result["per_frame_label"] = np.eye(len(LABELS))[result["per_frame_label"]]
 
         return result
 
@@ -267,19 +329,3 @@ class HandSlideDataset(BaseDataset):
         dataset_name = os.path.basename(self.src_dir)
         s = ' '.join([dataset_name, self.sample_statics.__str__()])
         return s
-
-
-class Frame():
-    def __init__(self, labelme_path, landmark, label, num_frame) -> None:
-        assert labelme_path.endswith('.json'), labelme_path
-        assert os.path.exists(labelme_path), labelme_path
-        assert label in LABELS, label
-        assert isinstance(landmark, np.ndarray), landmark
-
-        self.labelme_path = labelme_path
-        self.depth_path = labelme_path.replace(".json", ".png").replace("merge_result", "depth")
-        self.landmark = landmark
-        self.embedding = self.landmark
-        self.num_frame = num_frame
-        self.label = label
-        

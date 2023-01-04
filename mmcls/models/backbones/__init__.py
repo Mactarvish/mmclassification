@@ -38,7 +38,7 @@ from .van import VAN
 from .vgg import VGG
 from .vision_transformer import VisionTransformer
 
-from .hand_cnn_lstm import HandCNNLSTM
+from .hand_cnn_lstm import HandCNNLSTM, HandCNNLSTM_V2
 
 __all__ = [
     'LeNet5', 'AlexNet', 'VGG', 'RegNet', 'ResNet', 'ResNeXt', 'ResNetV1d',
@@ -51,5 +51,5 @@ __all__ = [
     'RepMLPNet', 'PoolFormer', 'DenseNet', 'VAN', 'MViT', 'EfficientFormer',
     'HorNet',
     
-    'HandCNNLSTM'
+    'HandCNNLSTM', 'HandCNNLSTM_V2'
 ]

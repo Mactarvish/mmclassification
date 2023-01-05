@@ -1,11 +1,14 @@
 # author: muzhan
+import time
+import io
 import matplotlib
 import json
 import numpy as np
  
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
- 
+from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+from matplotlib.figure import Figure
  
 from tqdm import tqdm
 import numpy as np
@@ -51,8 +54,20 @@ def vis_hand_pose_3d(hand_pose_np, single_finger=False):
                     np.hstack((zp[i + 0], zp[i + 5], zp[i + 10], zp[15])),
                     ls='-', color=colors[i])
     
-    plt.savefig('skeleton.png')
-
+    t1 = time.time()
+    buf = io.BytesIO()
+    plt.savefig(buf, format="jpg", dpi=90)
+    # 必须关闭，否则越来越慢
+    plt.close()
+    buf.seek(0)
+    img_arr = np.frombuffer(buf.getvalue(), dtype=np.uint8)
+    buf.close()
+    print(time.time() - t1)
+    
+    img = cv2.imdecode(img_arr, 1)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    return img
+    
 
 
 if __name__ == '__main__':
@@ -73,4 +88,5 @@ if __name__ == '__main__':
         if "kp" in json_dict:
             hand_pose_np = np.array(json_dict["kp"])[:, :3][np.newaxis, ...]
             hand_pose_np = ln.normalize_landmark(hand_pose_np)[0]
-            vis_hand_pose_3d(hand_pose_np, single_finger=args.single_finger)
+            vis_np = vis_hand_pose_3d(hand_pose_np, single_finger=args.single_finger)
+            cv2.imwrite("ee.png", vis_np)

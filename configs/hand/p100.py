@@ -10,7 +10,7 @@ model = dict(
     backbone=dict(
         type="HandCNNLSTM",
         num_frames=DURATION,
-        fea_num=NUM_KEYPOINTS*3
+        feat_num=NUM_KEYPOINTS*3
     ),
     # neck=dict(type='GlobalAveragePooling'),
     head=dict(
@@ -21,7 +21,7 @@ model = dict(
     ))
 
 # dataset settings
-dataset_type = 'HandSlideDataset'
+dataset_type = 'HandSlideDatasetMaxTIOU'
 train_pipeline = [
     dict(type='LandmarkAddNoise', single_finger=SINGLE_FINGER),
     dict(type='LandmarkNormalize'),

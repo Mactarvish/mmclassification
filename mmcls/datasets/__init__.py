@@ -15,7 +15,8 @@ from .samplers import DistributedSampler, RepeatAugSampler
 from .stanford_cars import StanfordCars
 from .voc import VOC
 
-from .hand_slide_dataset import HandSlideDataset
+from .hand_slide_dataset_max_tiou import HandSlideDatasetMaxTIOU
+from .hand_slide_dataset_align_first import HandSlideDatasetAlignFirst
 
 __all__ = [
     'BaseDataset', 'ImageNet', 'CIFAR10', 'CIFAR100', 'MNIST', 'FashionMNIST',
@@ -26,5 +27,5 @@ __all__ = [
     'CustomDataset', 'StanfordCars',
     
     
-    'HandSlideDataset'
+    'HandSlideDatasetMaxTIOU', "HandSlideDatasetAlignFirst"
 ]

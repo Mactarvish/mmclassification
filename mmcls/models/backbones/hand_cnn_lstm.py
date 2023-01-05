@@ -62,3 +62,19 @@ class HandCNNLSTM_V2(BaseBackbone):
         x, (h, c) = self.lstm1(x) # D N C
         x, (h, c) = self.lstm2(x)
         return x
+
+    # attention
+    
+    # def forward(self,text, seq_len):
+    #     emb = self.embedding(text)  # [batch_size, seq_len, embeding]=[128, 32, 300]
+    #     H, _ = self.lstm(emb)  # [batch_size, seq_len, hidden_size * num_direction]=[128, 32, 256]
+
+    #     M = self.tanh1(H)  # [128, 32, 256]
+    #     # M = torch.tanh(torch.matmul(H, self.u))
+    #     alpha = F.softmax(paddle.matmul(M, self.w), axis=1).unsqueeze(-1)  # [128, 32, 1]
+    #     out = H * alpha  # [128, 32, 256]
+    #     out = paddle.sum(out, 1)  # [128, 256]
+    #     out = F.relu(out)
+    #     out = self.fc1(out)
+    #     out = self.fc(out)  # [128, 64]
+    #     return out

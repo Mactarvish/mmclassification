@@ -35,11 +35,14 @@ def vis_bbox(vis_np, json_dict):
 def vis_kp(vis_np, json_dict):
     if "kp" not in json_dict:
         return vis_np
-    kps_xy = [(e[0], e[1]) for e in json_dict["kp"]]
-    for i in range(5):
-        cv2.line(vis_np, kps_xy[i], kps_xy[i + 5], (0, 255, 255))
-        cv2.line(vis_np, kps_xy[i + 5], kps_xy[i + 10], (0, 255, 255))
-        cv2.line(vis_np, kps_xy[i + 10], kps_xy[15], (0, 255, 255))
+    kps_xy = [(int(e[0]), int(e[1])) for e in json_dict["kp"]]
+    
+    for i in [1,5,9,13,17]:
+        cv2.line(vis_np, kps_xy[i], kps_xy[i + 1], (0, 255, 255), 2)
+        cv2.line(vis_np, kps_xy[i + 1], kps_xy[i + 2], (0, 255, 255), 2)
+        cv2.line(vis_np, kps_xy[i + 2], kps_xy[i + 3], (0, 255, 255), 2)
+        cv2.line(vis_np, kps_xy[i], kps_xy[0], (0, 255, 255), 2)
+    
     for i in range(len(kps_xy)):
         cv2.circle(vis_np, kps_xy[i], 2, (255, 255, 0))
         
@@ -62,12 +65,13 @@ if __name__ == '__main__':
     infer_json_paths = glob.glob(os.path.join(args.src_dir, "**", "infer_result", "*.json"), recursive=True)
 
     for infer_json_path in tqdm(infer_json_paths):
-        src_depth_path = infer_json_path.replace("infer_result", "depth").replace(".json", ".png")
+        src_depth_path = infer_json_path.replace("infer_result", "depth").replace(".json", ".jpg")
+        print(infer_json_path)
         assert os.path.exists(src_depth_path), src_depth_path
         json_dict = json.load(open(infer_json_path, 'r'))
 
         depth_np = cv2.imread(src_depth_path, cv2.IMREAD_UNCHANGED)
-        vis_np = vis_depth_to_u8(depth_np)
+        vis_np = depth_np.copy()
 
         vis_np = vis_bbox(vis_np, json_dict)
         vis_np = vis_kp(vis_np, json_dict)

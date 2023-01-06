@@ -1,5 +1,4 @@
 import torch
-import os
 import random
 import numpy as np
 from collections import defaultdict
@@ -10,12 +9,14 @@ import sys
 import os
 import glob
 import json
-import numpy as np
+import cv2
 
 from tabulate import tabulate
 
 from .base_dataset import BaseDataset
 from .builder import DATASETS
+
+from utils.visualize_hand_pose import vis_hand_pose_3d, create_gif
 
 LABELS = ["none", "up", "down", "left", "right"][:3]
 if len(LABELS) == 3:
@@ -88,6 +89,7 @@ class HandSlideDatasetAlignFirst(BaseDataset):
                 s["img"][:, 12:16, :] = 0
         # 统计样本分布
         self.sample_statics = self.static_sample_dist()
+        self.visualize_samples()
         
         # 训练阶段进行优质样本挖掘
         if not test_mode:
@@ -101,13 +103,13 @@ class HandSlideDatasetAlignFirst(BaseDataset):
         src_json_paths = src_json_paths[::-1]
         assert len(src_json_paths) != 0, self.src_dir
         # 首先把没有框的样本剔除，保持后续遍历时索引的连续性
-        src_json_paths = list(filter(lambda p: "bbox" in json.load(open(p, 'r')), src_json_paths))
+        src_json_paths = list(filter(lambda p: "kp" in json.load(open(p, 'r')), src_json_paths))
         
         # 逐个json解析成Frame
         frames = []
         for i, src_json_path in enumerate(src_json_paths):
             json_dict = json.load(open(src_json_path, 'r'))
-            assert "bbox" in json_dict
+            # assert "bbox" in json_dict
             assert "kp" in json_dict
             assert "on_table" in json_dict
 
@@ -263,5 +265,14 @@ class HandSlideDatasetAlignFirst(BaseDataset):
         up_samples  =[s for s in self.samples if s["patch_label"] == "up"]
         sampled_nones = random.sample(none_samples, min(len(none_samples), int((len(up_samples) + len(down_samples)) * 1.5)))
         print(f"滤除不平衡none样本, 保留 {len(sampled_nones)} 个none")
-        s = down_samples + up_samples + none_samples
+        s = down_samples + up_samples + sampled_nones
         return s
+
+        
+    def visualize_samples(self):
+        for s in self.samples:
+            vis_nps = vis_hand_pose_3d(s["img"], single_finger=True)
+            if len(vis_nps) != 0:
+                vis_nps = [vis_nps[0]] + vis_nps
+                create_gif(vis_nps, "ee.gif")
+                print()

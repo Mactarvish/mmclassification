@@ -26,7 +26,7 @@ if len(LABELS) == 3:
 
 
 @DATASETS.register_module()
-class HandSlideDatasetMaxTIOU(BaseDataset):
+class HandSlideDatasetRGB(BaseDataset):
     def __init__(self,
                  src_dir,
                  pipeline,
@@ -35,8 +35,8 @@ class HandSlideDatasetMaxTIOU(BaseDataset):
                  single_finger,
                  test_mode,
                  gt_per_frame):
-        assert "backup" not in src_dir, src_dir
-        assert "slide/" in src_dir, src_dir
+        # assert "backup" not in src_dir, src_dir
+        # assert "slide/" in src_dir, src_dir
         self.src_dir = src_dir
         
         self.duration = duration
@@ -69,6 +69,7 @@ class HandSlideDatasetMaxTIOU(BaseDataset):
                 s["img"][:, 2:6, :] = 0
                 s["img"][:, 7:11, :] = 0
                 s["img"][:, 12:16, :] = 0
+
         # 统计样本分布
         self.sample_statics = defaultdict(int)
         for e in self.samples:
@@ -77,14 +78,24 @@ class HandSlideDatasetMaxTIOU(BaseDataset):
         print("样本统计：")
         print(self.sample_statics)
         
-        if not test_mode:
+        if True:
             none_samples  =[s for s in self.samples if s["label"] == "none"]
             down_samples  =[s for s in self.samples if s["label"] == "down"]
             up_samples  =[s for s in self.samples if s["label"] == "up"]
             sampled_nones = random.sample(none_samples, self.sample_statics["down"] + self.sample_statics["up"])
             print(f"滤除不平衡none样本, 保留 {len(sampled_nones)} 个none")
             self.samples = down_samples + up_samples + sampled_nones
+
+
+        # 统计样本分布
+        self.sample_statics = defaultdict(int)
+        for e in self.samples:
+            self.sample_statics[e["label"]] += 1
         
+        print("样本统计：")
+        print(self.sample_statics)
+
+
         if self.gt_per_frame:
             print("使能逐帧GT")
             for s in self.samples:
@@ -95,25 +106,33 @@ class HandSlideDatasetMaxTIOU(BaseDataset):
         src_json_paths = sorted(glob.glob(os.path.join(self.src_dir, "**", "merge_result", "*.json"), recursive=True))
         assert len(src_json_paths) != 0, self.src_dir
         # 首先把没有框的样本剔除，保持后续遍历时索引的连续性
-        src_json_paths = list(filter(lambda p: "bbox" in json.load(open(p, 'r')), src_json_paths))
+        t = []
+        for src_json_path in src_json_paths:
+            jd = json.load(open(src_json_path, 'r'))
+            if "kp" in jd and "on_table" in jd:
+                t.append(src_json_path)
+        src_json_paths = t
+        print(len(src_json_paths))
+        # src_json_paths = list(filter(lambda p: "kp" in json.load(open(p, 'r')), src_json_paths))
         
         # 逐个json解析成Frame
         frames = []
         for i, src_json_path in enumerate(src_json_paths):
             json_dict = json.load(open(src_json_path, 'r'))
-            assert "bbox" in json_dict
+            # assert "bbox" in json_dict
             assert "kp" in json_dict
             assert "on_table" in json_dict
 
             # 解析landmark
-            landmark = np.zeros((num_keypoints , 3), dtype=np.float32)
+            landmark = np.zeros((num_keypoints , 2), dtype=np.float32)
             for j in range(num_keypoints):
-                landmark[j] = json_dict["kp"][j][:3]
+                landmark[j] = json_dict["kp"][j][:2]
                 
             # 确定当前帧的标签
             if json_dict["on_table"]:
                 for e in LABELS:
-                    if '/' + e in src_json_path:
+                    # if '/' + e in src_json_path:
+                    if e in src_json_path:
                         label = e
             else:
                 label = "none"

@@ -32,7 +32,7 @@ def create_gif(images_np, gif_name, duration_s=0.2):
     imageio.mimsave(gif_name, images_np, 'GIF', duration=duration_s)
 
 
-def vis_hand_pose_3d(hand_poses_np, single_finger=False, normalize=True):
+def vis_hand_pose_3d(hand_poses_np, normalize=True):
     if len(hand_poses_np.shape) == 2:
         hand_poses_np = hand_poses_np[np.newaxis, ...]
     if normalize:
@@ -55,22 +55,22 @@ def vis_hand_pose_3d(hand_poses_np, single_finger=False, normalize=True):
         
         # right leg
         colors = ["blue", "green", "yellow", "red", "cyan"]
-        if single_finger:
-            i = 1
-            ax.scatter3D(xp[[1,6,11,15]], yp[[1,6,11,15]], zp[[1,6,11,15]], cmap='Greens')
-            ax.plot(np.hstack((xp[i + 0], xp[i + 5], xp[i + 10], xp[15])),
-                    np.hstack((yp[i + 0], yp[i + 5], yp[i + 10], yp[15])),
-                    np.hstack((zp[i + 0], zp[i + 5], zp[i + 10], zp[15])),
-                    ls='-', color=colors[i])
-        else:
-            # 画点
-            ax.scatter3D(xp, yp, zp, cmap='Greens')
-            # 连线
+        # 画点
+        ax.scatter3D(xp, yp, zp, cmap='Greens')
+        # 连线
+        if len(xp) == 16:
             for i in range(5):
                 ax.plot(np.hstack((xp[i + 0], xp[i + 5], xp[i + 10], xp[15])),
                         np.hstack((yp[i + 0], yp[i + 5], yp[i + 10], yp[15])),
                         np.hstack((zp[i + 0], zp[i + 5], zp[i + 10], zp[15])),
                         ls='-', color=colors[i])
+        elif len(xp) == 4:
+            ax.plot(np.hstack((xp[0], xp[1], xp[2], xp[3])),
+                    np.hstack((yp[0], yp[1], yp[2], yp[3])),
+                    np.hstack((zp[0], zp[1], zp[2], zp[3])),
+                    ls='-', color=colors[0])
+        else:
+            raise ValueError(len(xp))
         
         buf = io.BytesIO()
         plt.savefig(buf, format="jpg", dpi=90)

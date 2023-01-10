@@ -2,7 +2,7 @@ DURATION = 8
 NUM_CLASSES = 3
 ONLY_LAST = True
 NUM_KEYPOINTS = 16
-SINGLE_FINGER = False
+SINGLE_FINGER = True
 
 # model settings
 model = dict(

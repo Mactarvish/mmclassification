@@ -17,7 +17,6 @@ from .voc import VOC
 
 from .hand_slide_dataset_max_tiou import HandSlideDatasetMaxTIOU
 from .hand_slide_dataset_align_first import HandSlideDatasetAlignFirst
-from .hand_slide_dataset_rgb import HandSlideDatasetRGB
 
 __all__ = [
     'BaseDataset', 'ImageNet', 'CIFAR10', 'CIFAR100', 'MNIST', 'FashionMNIST',
@@ -28,5 +27,5 @@ __all__ = [
     'CustomDataset', 'StanfordCars',
     
     
-    'HandSlideDatasetMaxTIOU', "HandSlideDatasetAlignFirst", "HandSlideDatasetRGB"
+    'HandSlideDatasetMaxTIOU', "HandSlideDatasetAlignFirst"
 ]

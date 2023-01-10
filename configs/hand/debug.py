@@ -1,15 +1,15 @@
 DURATION = 8
 NUM_CLASSES = 3
-ONLY_LAST = False
-NUM_KEYPOINTS = 16
+ONLY_LAST = True
 SINGLE_FINGER = False
 
+NUM_KEYPOINTS = 4 if SINGLE_FINGER else 16
 
 # model settings
 model = dict(
     type='ImageClassifier',
     backbone=dict(
-        type="HandCNNLSTM_V2",
+        type="HandCNNLSTM",
         num_frames=DURATION,
         feat_num=NUM_KEYPOINTS*3
     ),
@@ -22,18 +22,18 @@ model = dict(
     ))
 
 # dataset settings
-dataset_type = 'HandSlideDatasetAlignFirst'
+dataset_type = 'HandSlideDatasetMaxTIOU'
 train_pipeline = [
-    dict(type='LandmarkAddNoise', single_finger=SINGLE_FINGER),
+    dict(type='LandmarkAddNoise'),
     dict(type='LandmarkNormalize'),
     dict(type='LandmarkToTensor', keys=['img']),
     dict(type='ToTensor', keys=['gt_label']),
-    dict(type='Collect', keys=['img', 'gt_label'], meta_keys=['landmark', 'src_depth_paths'])
+    dict(type='Collect', keys=['img', 'gt_label'], meta_keys=['landmark', 'label', 'src_depth_paths'])
 ]
 test_pipeline = [
     dict(type='LandmarkNormalize'),
     dict(type='LandmarkToTensor', keys=['img']),
-    dict(type='Collect', keys=['img'], meta_keys=['landmark', 'src_depth_paths'])
+    dict(type='Collect', keys=['img'], meta_keys=['landmark', 'label', 'src_depth_paths'])
 ]
 
 
@@ -57,7 +57,8 @@ def gen_sub_data(src_dir, test_mode):
     duration=DURATION,
     num_keypoints=NUM_KEYPOINTS,
     single_finger=SINGLE_FINGER,
-    test_mode=test_mode)
+    test_mode=test_mode,
+    visualize=False)
 
 
 data = dict(

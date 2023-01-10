@@ -21,7 +21,7 @@ model = dict(
     ))
 
 # dataset settings
-dataset_type = 'HandSlideDatasetRGB'
+dataset_type = 'HandSlideDatasetMaxTIOU'
 train_pipeline = [
     # dict(type='LandmarkAddNoise', single_finger=SINGLE_FINGER),
     dict(type='LandmarkNormalize'),
@@ -58,8 +58,7 @@ def gen_sub_data(src_dir, test_mode):
     duration=DURATION,
     num_keypoints=NUM_KEYPOINTS,
     single_finger=SINGLE_FINGER,
-    test_mode=test_mode,
-    gt_per_frame=not ONLY_LAST) 
+    test_mode=test_mode)
 
 
 data = dict(

@@ -1195,7 +1195,7 @@ class LandmarkNormalize(object):
         # 逐帧除以手掌根部点到中指指尖点的距离
         # max_inner_distance = np.linalg.norm(landmark[:, 2, :], axis=1)
         # landmark = landmark / max_inner_distance[..., np.newaxis, np.newaxis]
-        # 除以关键点两两之间的最大距离（2范数）
+        # 逐帧除以关键点两两之间的最大距离（2范数）
         max_inner_distances = np.linalg.norm(landmark[:, None, ...] - landmark[:, :, None, ...], axis=3).max(axis=(1, 2))
         landmark = landmark / max_inner_distances[..., np.newaxis, np.newaxis]
         return landmark

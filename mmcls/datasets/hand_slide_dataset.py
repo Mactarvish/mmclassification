@@ -82,14 +82,6 @@ class HandSlideDataset(BaseDataset, metaclass=ABCMeta):
                         "duration": self.duration},
                        cache_path)
         
-        if self.single_finger:
-            print("使能单指推理")
-            for s in self.samples:
-                # 保留 [1,6,11,16]
-                s["img"][:, 0, :] = 0
-                s["img"][:, 2:6, :] = 0
-                s["img"][:, 7:11, :] = 0
-                s["img"][:, 12:16, :] = 0
         # 统计样本分布
         self.sample_statics = self.static_sample_dist()
         

@@ -1,8 +1,8 @@
 DURATION = 8
 NUM_CLASSES = 3
 ONLY_LAST = True
-SINGLE_FINGER = False
-
+SINGLE_FINGER = True
+VISUALIZE = False
 NUM_KEYPOINTS = 4 if SINGLE_FINGER else 16
 
 # model settings
@@ -58,7 +58,7 @@ def gen_sub_data(src_dir, test_mode):
     num_keypoints=NUM_KEYPOINTS,
     single_finger=SINGLE_FINGER,
     test_mode=test_mode,
-    visualize=False)
+    visualize=VISUALIZE)
 
 
 data = dict(

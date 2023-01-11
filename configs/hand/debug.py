@@ -2,7 +2,7 @@ DURATION = 8
 NUM_CLASSES = 3
 ONLY_LAST = True
 SINGLE_FINGER = True
-VISUALIZE = False
+VISUALIZE = True
 NUM_KEYPOINTS = 4 if SINGLE_FINGER else 16
 
 # model settings

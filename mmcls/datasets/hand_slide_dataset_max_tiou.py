@@ -104,57 +104,5 @@ class HandSlideDatasetMaxTIOU(HandSlideDataset):
         return super().mine_good_cases()
     
     def static_sample_dist(self):
-        print("原始数据统计：")
-        begin = 0
-        cur_label = "none"
-        label_durations = defaultdict(list)
-        for i in range(len(self.frames)):
-            if i > 0 and self.frames[i - 1].label != self.frames[i].label:
-                # 新动作开始
-                if self.frames[i].label != "none":
-                    begin = i
-                    cur_label = self.frames[i].label
-                # 动作结束
-                else:
-                    duration = i - begin
-                    label_durations[cur_label].append(duration)
-
-        for k in label_durations:
-            label_durations[k] = sorted(label_durations[k])
-        
-        raw_table = []
-        # for k in ["none", "up", "down"]:
-        for k in ["up", "down"]:
-            row = [k, len(label_durations[k]), sum(label_durations[k]) / len(label_durations[k])]
-            raw_table.append(row)
-        table = tabulate(
-        raw_table,
-        headers=["类别", "数量", "平均时长"],
-        tablefmt="pipe",
-        numalign="left",
-        stralign="center",
-        )
-        print(table)
-            
-        
-        print("数据集训练样本统计：")
-        label_durations.clear()
-        for s in self.samples:
-            m = 0
-            while m < len(s["per_frame_label"]) and s["per_frame_label"][m] == s["per_frame_label"][0]:
-                m += 1
-            label_durations[s["patch_label"]].append(m)
-        sample_table = []
-        for k in ["none", "up", "down"]:
-            row = [k, len(label_durations[k]), sum(label_durations[k]) / len(label_durations[k])]
-            sample_table.append(row)
-        table = tabulate(
-        sample_table,
-        headers=["类别", "数量", "平均时长"],
-        tablefmt="pipe",
-        numalign="left",
-        stralign="center",
-        )
-        print(table)
-        
-        return table
+        return super().static_sample_dist()
+    

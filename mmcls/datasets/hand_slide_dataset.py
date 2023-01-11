@@ -64,6 +64,8 @@ class HandSlideDataset(BaseDataset, metaclass=ABCMeta):
         self.duration = duration
         self.single_finger = single_finger
         self.frames = self.parse_jsons_to_frames(self.src_dir, num_keypoints)
+        # 对帧序列进行清洗，删除重复动作帧等无效帧
+        self.frames = self.preprocess_frames()
 
         cache_name = '_'.join(self.src_dir.split("slide/")[-1].split('/')) + ".pkl"
         cache_path = os.path.join("pgs", cache_name)
@@ -165,6 +167,57 @@ class HandSlideDataset(BaseDataset, metaclass=ABCMeta):
         sl[LABELS.index(label)] = prob
         sl[0] = 1 - prob
         return sl
+    
+    def preprocess_frames(self):
+        # 1. 删除连续的微小差异有效动作帧
+        IGNORED_FRAME_DIFF_THRESHOLD = 10
+        last_valid_frame_index = 0
+        to_be_removed_indexes = []
+        for i in range(1, len(self.frames)):
+            # 如果当前帧和上一有效帧都是有效动作帧，那么计算帧差并根据帧差决定当前帧的裁决
+            if self.frames[i].label != "none" :
+                if self.frames[last_valid_frame_index].label != "none":
+                    dist = np.linalg.norm(self.frames[i].embedding - self.frames[last_valid_frame_index].embedding)
+                    # 帧差太小，删除当前帧
+                    if dist < IGNORED_FRAME_DIFF_THRESHOLD:
+                        to_be_removed_indexes.append(i)
+                        if sys.gettrace():
+                            print(dist)
+                            print(self.frames[i].depth_path.replace("depth", "normal"))
+                            print(self.frames[i - 1].depth_path.replace("depth", "normal"))
+                            print(self.frames[i].landmark)
+                            print(self.frames[i - 1].landmark)
+                            import shutil
+                            shutil.copy(self.frames[i].depth_path.replace("depth", "normal"), "pgs/f1.png")
+                            shutil.copy(self.frames[i - 1].depth_path.replace("depth", "normal"), "pgs/f2.png")
+                            print()
+            # 当前帧未被移除，说明当前帧有效，下次算帧差跟当前帧算
+            if len(to_be_removed_indexes) == 0 or to_be_removed_indexes[-1] != i:
+                last_valid_frame_index = i
+
+        kept_frames = []
+        for i in range(len(self.frames)):
+            if i not in to_be_removed_indexes:
+                kept_frames.append(self.frames[i])
+        self.frames = kept_frames
+        # 2. 删除孤立动作帧
+        to_be_removed_indexes = []
+        for i in range(len(self.frames)):
+            last_none = i == 0 or self.frames[i - 1].label == "none"
+            next_none = i == len(self.frames) - 1 or self.frames[i + 1].label == "none"
+            if self.frames[i].label != "none" and last_none and next_none:
+                to_be_removed_indexes.append(i)
+                
+        kept_frames = []
+        for i in range(len(self.frames)):
+            if i not in to_be_removed_indexes:
+                kept_frames.append(self.frames[i])
+        self.frames = kept_frames
+
+            
+        
+                
+        return self.frames
 
     @abstractmethod
     def generate_single_sample(self, indexes):
@@ -198,11 +251,11 @@ class HandSlideDataset(BaseDataset, metaclass=ABCMeta):
         raw_table = []
         # for k in ["none", "up", "down"]:
         for k in ["up", "down"]:
-            row = [k, len(label_durations[k]), sum(label_durations[k]) / len(label_durations[k])]
+            row = [k, len(label_durations[k]), sum(label_durations[k]) / len(label_durations[k]), min(label_durations[k]), max(label_durations[k])]
             raw_table.append(row)
         table = tabulate(
         raw_table,
-        headers=["类别", "数量", "平均时长"],
+        headers=["类别", "数量", "平均时长", "最短时长", "最大时长"],
         tablefmt="pipe",
         numalign="left",
         stralign="center",
@@ -219,11 +272,11 @@ class HandSlideDataset(BaseDataset, metaclass=ABCMeta):
             label_durations[s["patch_label"]].append(m)
         sample_table = []
         for k in ["none", "up", "down"]:
-            row = [k, len(label_durations[k]), sum(label_durations[k]) / len(label_durations[k])]
+            row = [k, len(label_durations[k]), sum(label_durations[k]) / len(label_durations[k]), min(label_durations[k]), max(label_durations[k])]
             sample_table.append(row)
         table = tabulate(
         sample_table,
-        headers=["类别", "数量", "平均时长"],
+        headers=["类别", "数量", "平均时长", "最短时长", "最大时长"],
         tablefmt="pipe",
         numalign="left",
         stralign="center",

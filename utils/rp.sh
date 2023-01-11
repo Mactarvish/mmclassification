@@ -1,4 +1,4 @@
-while !$(git push origin learning)
+until git push origin learning
 do
-    echo $(git push origin learning)
+    echo "retry"
 done

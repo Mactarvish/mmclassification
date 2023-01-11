@@ -37,11 +37,18 @@ def vis_kp(vis_np, json_dict):
         return vis_np
     kps_xy = [(int(e[0]), int(e[1])) for e in json_dict["kp"]]
     
-    for i in [1,5,9,13,17]:
-        cv2.line(vis_np, kps_xy[i], kps_xy[i + 1], (0, 255, 255), 2)
-        cv2.line(vis_np, kps_xy[i + 1], kps_xy[i + 2], (0, 255, 255), 2)
-        cv2.line(vis_np, kps_xy[i + 2], kps_xy[i + 3], (0, 255, 255), 2)
-        cv2.line(vis_np, kps_xy[i], kps_xy[0], (0, 255, 255), 2)
+    # mediapipe
+    # for i in [1,5,9,13,17]:
+    #     cv2.line(vis_np, kps_xy[i], kps_xy[i + 1], (0, 255, 255), 2)
+    #     cv2.line(vis_np, kps_xy[i + 1], kps_xy[i + 2], (0, 255, 255), 2)
+    #     cv2.line(vis_np, kps_xy[i + 2], kps_xy[i + 3], (0, 255, 255), 2)
+    #     cv2.line(vis_np, kps_xy[i], kps_xy[0], (0, 255, 255), 2)
+
+    for i in range(5):
+        cv2.line(vis_np, kps_xy[i], kps_xy[i + 5], (0, 255, 255), 1)
+        cv2.line(vis_np, kps_xy[i + 5], kps_xy[i + 10], (0, 255, 255), 1)
+        cv2.line(vis_np, kps_xy[i + 10], kps_xy[15], (0, 255, 255), 1)
+        
     
     for i in range(len(kps_xy)):
         cv2.circle(vis_np, kps_xy[i], 2, (255, 255, 0))
@@ -62,15 +69,15 @@ if __name__ == '__main__':
     parser.add_argument("--num_modals", type=int, default=4)
     args = parser.parse_args()
     
-    infer_json_paths = glob.glob(os.path.join(args.src_dir, "**", "infer_result", "*.json"), recursive=True)
+    infer_json_paths = glob.glob(os.path.join(args.src_dir, "**", "merge_result", "*.json"), recursive=True)
 
     for infer_json_path in tqdm(infer_json_paths):
-        src_depth_path = infer_json_path.replace("infer_result", "depth").replace(".json", ".jpg")
         print(infer_json_path)
+        src_depth_path = infer_json_path.replace("merge_result", "depth").replace(".json", ".png")
         assert os.path.exists(src_depth_path), src_depth_path
         json_dict = json.load(open(infer_json_path, 'r'))
 
-        depth_np = cv2.imread(src_depth_path, cv2.IMREAD_UNCHANGED)
+        depth_np = vis_depth_to_u8(src_depth_path)
         vis_np = depth_np.copy()
 
         vis_np = vis_bbox(vis_np, json_dict)
@@ -79,7 +86,8 @@ if __name__ == '__main__':
         
         vis_save_path = src_depth_path.replace("depth", "normal")
         os.makedirs(os.path.dirname(vis_save_path), exist_ok=True)
-        cv2.imwrite(vis_save_path, cv2.resize(vis_np, (vis_np.shape[1] *2, vis_np.shape[0] * 2)))
+        if cv2.imwrite(vis_save_path, vis_np):
+            print(vis_save_path)
             
 
 

@@ -141,13 +141,13 @@ class ImageClassifier(BaseClassifier):
         x = self.extract_feat(img)
 
         losses = dict()
-        loss = self.head.forward_train(x, gt_label)
+        loss = self.head.forward_train(x, gt_label, **kwargs)
 
         losses.update(loss)
 
         return losses
 
-    def simple_test(self, img, img_metas=None, **kwargs):
+    def simple_test(self, img, **kwargs):
         """Test without augmentation."""
         x = self.extract_feat(img)
 

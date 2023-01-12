@@ -35,19 +35,38 @@ class LSTMHead(ClsHead):
         self.head = nn.Linear(in_features=32, out_features=num_classes)
 
 
-    def pre_logits(self, x):
-        if self.only_last:
+    def pre_logits(self, x, **kwargs):
+        if "img_metas" in kwargs and len(kwargs["img_metas"]) != 0 and "duration" in kwargs["img_metas"][0]:
+            durations = [e["duration"] for e in kwargs["img_metas"]]
+            '''
+            这段给爷绕的不行
+            目的：从x中逐个样本获取对应最后一个有效帧的特征，垒到一块儿
+            方案：使用这个超级蹩脚的gather函数
+            具体方法：
+            gather这个函数的作用可以顾名思义，即从一个tensor中获取一些（期望的）元素垒到一块儿
+            第二个参数indexes是一个和x相同轴数的tensor，假如没有第一个参数dim，那么gather函数的返回值就是一个新的tensor，其中每个位置的元素值就是
+            x本身的“indexes的每个元素的位置”的值。推论：此时indexes里具体的元素数值没卵用，gather函数的返回结果只跟indexes的形状有关；
+            现在考虑第一个参数dim，indexes的每个位置坐标tuple的第dim个元素改成indexes元素的数值，此时的tuple作为新的位置映射。
+            真他妈绕啊，谁能看懂我这段话那TA绝对是个天才
+            '''
+            di = torch.zeros(1, x.size(1), x.size(2)).to(x.device).long()
+            for i in range(len(durations)):
+                di[0, i] = durations[i]
+            x = x.gather(0, di)[0]
+            # for i in range(len(durations)):
+                # assert (x_[i] == x[durations[i], i]).all()
+        elif self.only_last:
             i = x.size(0) - 1
             x = x[i] # 最后一个LSTM只要窗口中最后一个特征的输出
         x = self.fc(x)
         x = self.relu2(x)
         x = self.head(x)
-        x = nn.Softmax(dim=-1)(x)
+        # x = nn.Softmax(dim=-1)(x)
         if not self.only_last:
             x = x.transpose(1, 0)
         return x
 
-    def simple_test(self, x, softmax=True, post_process=True):
+    def simple_test(self, x, softmax=True, post_process=True, **kwargs):
         """Inference without augmentation.
 
         Args:
@@ -67,7 +86,7 @@ class LSTMHead(ClsHead):
                 - If post processing, the output is a multi-dimentional list of
                   float and the dimensions are ``(num_samples, num_classes)``.
         """
-        cls_score = self.pre_logits(x)
+        cls_score = self.pre_logits(x, **kwargs)
 
         pred = cls_score
 
@@ -77,7 +96,7 @@ class LSTMHead(ClsHead):
             return pred
 
     def forward_train(self, x, gt_label, **kwargs):
-        x = self.pre_logits(x)
+        x = self.pre_logits(x, **kwargs)
         losses = self.loss(x, gt_label, **kwargs)
         return losses
     

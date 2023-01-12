@@ -1199,3 +1199,29 @@ class LandmarkNormalize(object):
         max_inner_distances = np.linalg.norm(landmark[:, None, ...] - landmark[:, :, None, ...], axis=3).max(axis=(1, 2))
         landmark = landmark / max_inner_distances[..., np.newaxis, np.newaxis]
         return landmark
+
+
+@PIPELINES.register_module()
+class LandmarkSequencePadding(object):
+    """把关键点帧序列补齐到给定帧数
+
+    Args:
+        mean (sequence): Mean values of 3 channels.
+        std (sequence): Std values of 3 channels.
+        to_rgb (bool): Whether to convert the image from BGR to RGB,
+            default is true.
+    """
+
+    def __init__(self, max_duration):
+        self.max_duration = max_duration
+
+    def __call__(self, results):
+        for key in results.get('img_fields', ['img']):
+            results["duration"] = results[key].shape[0]
+            results[key] = self.pad_sequence(results[key])
+        return results
+
+    def pad_sequence(self, landmark):
+        d = np.zeros((self.max_duration, landmark.shape[1], landmark.shape[2]), dtype=landmark.dtype)
+        d[:landmark.shape[0]] = landmark
+        return d

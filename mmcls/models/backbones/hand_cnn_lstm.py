@@ -35,7 +35,6 @@ class HandCNNLSTM(BaseBackbone):
         return x
 
 
-
 @BACKBONES.register_module()
 class HandCNNLSTM_V2(BaseBackbone):
     def __init__(self, num_frames, feat_num=21*3):
@@ -64,7 +63,6 @@ class HandCNNLSTM_V2(BaseBackbone):
         return x
 
     # attention
-    
     # def forward(self,text, seq_len):
     #     emb = self.embedding(text)  # [batch_size, seq_len, embeding]=[128, 32, 300]
     #     H, _ = self.lstm(emb)  # [batch_size, seq_len, hidden_size * num_direction]=[128, 32, 256]
